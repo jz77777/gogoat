@@ -86,8 +86,8 @@ func extractArchive() error {
 }
 
 func update() error {
-	versionUrl := "https://www.rebornevo.com/downloads/rebornremote/version"
-	patchUrl := "https://www.rebornevo.com/downloads/rebornremote/patch.zip"
+	versionUrl := "https://www.rebornevo.com/downloads/rebornremote/Desolation6/version"
+	patchUrl := "https://www.rebornevo.com/downloads/rebornremote/Desolation6/patch_24bs6P9uo5.zip"
 
 	var err error
 	err = download(versionUrl, "_version")
