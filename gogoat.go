@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
 	"os"
@@ -85,12 +86,26 @@ func extractArchive() error {
 	return nil
 }
 
-func update() error {
-	versionUrl := "https://www.rebornevo.com/downloads/rebornremote/Desolation6/version"
-	patchUrl := "https://www.rebornevo.com/downloads/rebornremote/Desolation6/patch_24bs6P9uo5.zip"
+type Config struct {
+	VersionUrl string `yaml:"version_url"`
+	PatchUrl   string `yaml:"patch_url"`
+}
 
+func update() error {
 	var err error
-	err = download(versionUrl, "_version")
+
+	yamlFile, err := os.ReadFile("gogoat.yaml")
+	if err != nil {
+		return err
+	}
+
+	config := Config{}
+	err = yaml.Unmarshal(yamlFile, &config)
+	if err != nil {
+		return err
+	}
+
+	err = download(config.VersionUrl, "_version")
 	if err != nil {
 		return err
 	}
@@ -115,7 +130,7 @@ func update() error {
 		fmt.Println("Downloading version " + remoteVersion)
 		fmt.Println()
 
-		err = download(patchUrl, "_patch.zip")
+		err = download(config.PatchUrl, "_patch.zip")
 		if err != nil {
 			return err
 		}
