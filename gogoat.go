@@ -87,8 +87,8 @@ func extractArchive() error {
 }
 
 type Config struct {
-	VersionUrl string `yaml:"version_url"`
-	PatchUrl   string `yaml:"patch_url"`
+	VersionUrl *string `yaml:"version_url"`
+	PatchUrl   string  `yaml:"patch_url"`
 }
 
 func update() error {
@@ -105,7 +105,33 @@ func update() error {
 		return err
 	}
 
-	err = download(config.VersionUrl, "_version")
+	if config.VersionUrl == nil {
+		return alwaysUpdate(config)
+	}
+
+	return attemptUpdateUsingVersionFile(config)
+}
+
+func alwaysUpdate(config Config) error {
+	fmt.Println("Downloading latest patch...")
+	fmt.Println()
+
+	err := applyPatch(config)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Done!")
+	fmt.Println("Closing in 3 seconds")
+	time.Sleep(3 * time.Second)
+
+	return nil
+}
+
+func attemptUpdateUsingVersionFile(config Config) error {
+	var err error
+
+	err = download(*config.VersionUrl, "_version")
 	if err != nil {
 		return err
 	}
@@ -130,17 +156,7 @@ func update() error {
 		fmt.Println("Downloading version " + remoteVersion)
 		fmt.Println()
 
-		err = download(config.PatchUrl, "_patch.zip")
-		if err != nil {
-			return err
-		}
-
-		err = extractArchive()
-		if err != nil {
-			return err
-		}
-
-		err = os.Remove("_patch.zip")
+		err = applyPatch(config)
 		if err != nil {
 			return err
 		}
@@ -168,6 +184,23 @@ func update() error {
 	time.Sleep(3 * time.Second)
 
 	return nil
+}
+
+func applyPatch(config Config) error {
+	var err error
+
+	err = download(config.PatchUrl, "_patch.zip")
+	if err != nil {
+		return err
+	}
+
+	err = extractArchive()
+	if err != nil {
+		return err
+	}
+
+	err = os.Remove("_patch.zip")
+	return err
 }
 
 func main() {
