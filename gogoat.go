@@ -87,8 +87,8 @@ func extractArchive() error {
 }
 
 type Config struct {
-	VersionUrl *string `yaml:"version_url"`
-	PatchUrl   string  `yaml:"patch_url"`
+	VersionUrl *string `yaml:"versionUrl"`
+	PatchUrl   string  `yaml:"patchUrl"`
 }
 
 func update() error {
