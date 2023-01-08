@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
+	"crypto/sha1"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -56,6 +58,15 @@ func extractArchive() error {
 			continue
 		}
 
+		skipExtraction, err := archiveFileIsTheSame(file.Name, file)
+		if err != nil {
+			return err
+		}
+
+		if skipExtraction {
+			continue
+		}
+
 		if !strings.HasPrefix(file.Name, "Scripts/") {
 			fmt.Println("Extracting " + file.Name)
 		}
@@ -84,6 +95,47 @@ func extractArchive() error {
 	}
 
 	return nil
+}
+
+func archiveFileIsTheSame(fileName string, zipFile *zip.File) (bool, error) {
+	if !fileExists(fileName) {
+		return false, nil
+	}
+
+	var err error
+	zipContent, err := zipFile.Open()
+	if err != nil {
+		return false, err
+	}
+
+	zipSum, err := calculateFileHash(zipContent)
+	if err != nil {
+		return false, err
+	}
+
+	existingReader, err := os.Open(fileName)
+	if err != nil {
+		return false, err
+	}
+
+	existingSum, err := calculateFileHash(existingReader)
+	if err != nil {
+		return false, err
+	}
+
+	return bytes.Equal(zipSum, existingSum), nil
+}
+
+func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
+	defer reader.Close()
+
+	hash := sha1.New()
+	_, err := io.Copy(hash, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return hash.Sum(nil), nil
 }
 
 type Config struct {
