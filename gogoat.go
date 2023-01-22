@@ -183,14 +183,14 @@ func alwaysUpdate(config Config) error {
 func attemptUpdateUsingVersionFile(config Config) error {
 	var err error
 
-	err = download(*config.VersionUrl, "_version")
+	err = download(*config.VersionUrl, "_version.txt")
 	if err != nil {
 		return err
 	}
 
 	var currentVersion string
-	if fileExists("version") {
-		currentVersion, err = readVersion("version")
+	if fileExists("version.txt") {
+		currentVersion, err = readVersion("version.txt")
 		if err != nil {
 			return err
 		}
@@ -198,7 +198,7 @@ func attemptUpdateUsingVersionFile(config Config) error {
 		currentVersion = ""
 	}
 
-	remoteVersion, err := readVersion("_version")
+	remoteVersion, err := readVersion("_version.txt")
 	if err != nil {
 		return err
 	}
@@ -212,11 +212,11 @@ func attemptUpdateUsingVersionFile(config Config) error {
 		if err != nil {
 			return err
 		}
-		err = os.Remove("version")
+		err = os.Remove("version.txt")
 		if err != nil {
 			return err
 		}
-		err = os.Rename("_version", "version")
+		err = os.Rename("_version.txt", "version.txt")
 		if err != nil {
 			return err
 		}
@@ -224,7 +224,7 @@ func attemptUpdateUsingVersionFile(config Config) error {
 		fmt.Println()
 		fmt.Println("Updated to version " + remoteVersion)
 	} else {
-		err = os.Remove("_version")
+		err = os.Remove("_version.txt")
 		if err != nil {
 			return err
 		}
