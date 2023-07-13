@@ -146,6 +146,16 @@ type Config struct {
 func update() error {
 	var err error
 
+	path, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	err = os.Chdir(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+
 	yamlFile, err := os.ReadFile("gogoat.yaml")
 	if err != nil {
 		return err
@@ -259,5 +269,6 @@ func main() {
 	err := update()
 	if err != nil {
 		fmt.Printf("Error: %s", err)
+		time.Sleep(5 * time.Second)
 	}
 }
