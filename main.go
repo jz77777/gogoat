@@ -262,6 +262,7 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 
 		fmt.Println()
 		fmt.Println("Updated to version " + remoteVersion)
+		fmt.Println()
 	} else {
 		fmt.Println("Version " + currentVersion + " is up to date")
 	}
