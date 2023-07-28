@@ -173,15 +173,25 @@ func update() error {
 		return err
 	}
 
+	// If a patch was applied all followup patches need to be reapplied on top.
+	forceUpdate := false
 	for name, patch := range config.Patches {
-		if patch.VersionUrl == nil || patch.Version == nil {
+		if patch.VersionUrl == nil || patch.Version == nil || forceUpdate {
 			err = alwaysUpdate(name, patch)
-		} else {
-			*patch.Version, err = attemptUpdateUsingVersionFile(name, patch)
-		}
+			if err != nil {
+				return err
+			}
 
-		if err != nil {
-			return err
+			forceUpdate = true
+		} else {
+			version, err := attemptUpdateUsingVersionFile(name, patch)
+			if err != nil {
+				return err
+			}
+
+			if version != *patch.Version {
+				forceUpdate = true
+			}
 		}
 	}
 
