@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20.x
+
+      - name: Dependencies
+        run: go get .
+
+      - name: Compile
+        run: |
+          GOARCH=amd64 GOOS=windows go build -ldflags="-s -w" -o updater.exe main.go
+          GOARCH=amd64 GOOS=linux go build -ldflags="-s -w" -o updater-linux main.go
+          GOARCH=amd64 GOOS=darwin go build -ldflags="-s -w" -o updater-mac main.go
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          fail_on_unmatched_files: true
+          files: |
+            updater.exe
+            updater-linux
+            updater-mac
