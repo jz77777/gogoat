@@ -160,7 +160,7 @@ func update() error {
 		return err
 	}
 
-	yamlFile, err := os.ReadFile("gogoat.yaml")
+	yamlFile, err := os.ReadFile("updater.yaml")
 	if err != nil {
 		return err
 	}
