@@ -295,11 +295,12 @@ func baseVersion(version string) string {
 
 func main() {
 	err := update()
-	if err != nil {
-		if fileExists("_version.txt") {
-			_ = os.Remove("_version.txt")
-		}
 
+	if fileExists("_version.txt") {
+		_ = os.Remove("_version.txt")
+	}
+
+	if err != nil {
 		fmt.Printf("Error: %s", err)
 		time.Sleep(5 * time.Second)
 	}
