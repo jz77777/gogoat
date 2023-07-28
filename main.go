@@ -141,8 +141,8 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 
 type Patch struct {
 	Version    *string `yaml:"version"`
-	VersionUrl *string `yaml:"versionUrl"`
-	PatchUrl   string  `yaml:"patchUrl"`
+	VersionUrl *string `yaml:"version_url"`
+	PatchUrl   string  `yaml:"patch_url"`
 }
 
 type Config struct {
