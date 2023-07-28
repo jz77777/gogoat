@@ -138,9 +138,13 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 	return hash.Sum(nil), nil
 }
 
-type Config struct {
+type Patch struct {
 	VersionUrl *string `yaml:"versionUrl"`
 	PatchUrl   string  `yaml:"patchUrl"`
+}
+
+type Config struct {
+	Patches []Patch `yaml:"patches"`
 }
 
 func update() error {
@@ -167,18 +171,28 @@ func update() error {
 		return err
 	}
 
-	if config.VersionUrl == nil {
-		return alwaysUpdate(config)
+	for _, patch := range config.Patches {
+		if patch.VersionUrl == nil {
+			err = alwaysUpdate(patch)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = attemptUpdateUsingVersionFile(patch)
+		if err != nil {
+			return err
+		}
 	}
 
-	return attemptUpdateUsingVersionFile(config)
+	return nil
 }
 
-func alwaysUpdate(config Config) error {
+func alwaysUpdate(patch Patch) error {
 	fmt.Println("Downloading latest patch...")
 	fmt.Println()
 
-	err := applyPatch(config)
+	err := applyPatch(patch)
 	if err != nil {
 		return err
 	}
@@ -190,10 +204,10 @@ func alwaysUpdate(config Config) error {
 	return nil
 }
 
-func attemptUpdateUsingVersionFile(config Config) error {
+func attemptUpdateUsingVersionFile(patch Patch) error {
 	var err error
 
-	err = download(*config.VersionUrl, "_version.txt")
+	err = download(*patch.VersionUrl, "_version.txt")
 	if err != nil {
 		return err
 	}
@@ -218,7 +232,7 @@ func attemptUpdateUsingVersionFile(config Config) error {
 		fmt.Println("Downloading version " + remoteVersion)
 		fmt.Println()
 
-		err = applyPatch(config)
+		err = applyPatch(patch)
 		if err != nil {
 			return err
 		}
@@ -248,10 +262,10 @@ func attemptUpdateUsingVersionFile(config Config) error {
 	return nil
 }
 
-func applyPatch(config Config) error {
+func applyPatch(patch Patch) error {
 	var err error
 
-	err = download(config.PatchUrl, "_patch.zip")
+	err = download(patch.PatchUrl, "_patch.zip")
 	if err != nil {
 		return err
 	}
