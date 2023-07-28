@@ -140,13 +140,14 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 }
 
 type Patch struct {
+	Name       string  `yaml:"name"`
 	Version    *string `yaml:"version"`
 	VersionUrl *string `yaml:"version_url"`
 	PatchUrl   string  `yaml:"patch_url"`
 }
 
 type Config struct {
-	Patches map[string]Patch `yaml:"patches"`
+	Patches []Patch `yaml:"patches"`
 }
 
 func update() error {
@@ -175,16 +176,16 @@ func update() error {
 
 	// If a patch was applied all followup patches need to be reapplied on top.
 	forceUpdate := false
-	for name, patch := range config.Patches {
+	for _, patch := range config.Patches {
 		if patch.VersionUrl == nil || patch.Version == nil || forceUpdate {
-			err = alwaysUpdate(name, patch)
+			err = alwaysUpdate(patch)
 			if err != nil {
 				return err
 			}
 
 			forceUpdate = true
 		} else {
-			version, err := attemptUpdateUsingVersionFile(name, patch)
+			version, err := attemptUpdateUsingVersionFile(patch)
 			if err != nil {
 				return err
 			}
@@ -192,6 +193,8 @@ func update() error {
 			if version != *patch.Version {
 				forceUpdate = true
 			}
+
+			*patch.Version = version
 		}
 	}
 
@@ -211,8 +214,8 @@ func update() error {
 	return nil
 }
 
-func alwaysUpdate(name string, patch Patch) error {
-	fmt.Println("Downloading latest patch for " + name + "...")
+func alwaysUpdate(patch Patch) error {
+	fmt.Println("Downloading latest patch for " + patch.Name + "...")
 	fmt.Println()
 
 	err := applyPatch(patch)
@@ -225,7 +228,7 @@ func alwaysUpdate(name string, patch Patch) error {
 	return nil
 }
 
-func attemptUpdateUsingVersionFile(name string, patch Patch) (string, error) {
+func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 	var err error
 
 	err = download(*patch.VersionUrl, "_version.txt")
@@ -241,12 +244,12 @@ func attemptUpdateUsingVersionFile(name string, patch Patch) (string, error) {
 	currentVersion := *patch.Version
 
 	if currentVersion != remoteVersion {
-		fmt.Println("Updating " + name + "...")
+		fmt.Println("Updating " + patch.Name + "...")
 		fmt.Println("Version " + currentVersion + " is outdated")
 		fmt.Println("Latest version is " + remoteVersion + " is outdated")
 
 		if baseVersion(currentVersion) != baseVersion(remoteVersion) {
-			return "", errors.New("The latest version of " + name + " is needs to be downloaded manually.")
+			return "", errors.New("The latest version of " + patch.Name + " is needs to be downloaded manually.")
 		}
 
 		fmt.Println("Downloading version " + remoteVersion)
