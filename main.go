@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha1"
+	"errors"
 	"fmt"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -139,12 +140,13 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 }
 
 type Patch struct {
+	Version    *string `yaml:"version"`
 	VersionUrl *string `yaml:"versionUrl"`
 	PatchUrl   string  `yaml:"patchUrl"`
 }
 
 type Config struct {
-	Patches []Patch `yaml:"patches"`
+	Patches map[string]Patch `yaml:"patches"`
 }
 
 func update() error {
@@ -171,25 +173,36 @@ func update() error {
 		return err
 	}
 
-	for _, patch := range config.Patches {
-		if patch.VersionUrl == nil {
-			err = alwaysUpdate(patch)
-			if err != nil {
-				return err
-			}
+	for name, patch := range config.Patches {
+		if patch.VersionUrl == nil || patch.Version == nil {
+			err = alwaysUpdate(name, patch)
+		} else {
+			*patch.Version, err = attemptUpdateUsingVersionFile(name, patch)
 		}
 
-		err = attemptUpdateUsingVersionFile(patch)
 		if err != nil {
 			return err
 		}
 	}
 
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile("updater.yaml", data, 0644)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Closing in 3 seconds")
+	time.Sleep(3 * time.Second)
+
 	return nil
 }
 
-func alwaysUpdate(patch Patch) error {
-	fmt.Println("Downloading latest patch...")
+func alwaysUpdate(name string, patch Patch) error {
+	fmt.Println("Downloading latest patch for " + name + "...")
 	fmt.Println()
 
 	err := applyPatch(patch)
@@ -198,68 +211,49 @@ func alwaysUpdate(patch Patch) error {
 	}
 
 	fmt.Println("Done!")
-	fmt.Println("Closing in 3 seconds")
-	time.Sleep(3 * time.Second)
 
 	return nil
 }
 
-func attemptUpdateUsingVersionFile(patch Patch) error {
+func attemptUpdateUsingVersionFile(name string, patch Patch) (string, error) {
 	var err error
 
 	err = download(*patch.VersionUrl, "_version.txt")
 	if err != nil {
-		return err
-	}
-
-	var currentVersion string
-	if fileExists("version.txt") {
-		currentVersion, err = readVersion("version.txt")
-		if err != nil {
-			return err
-		}
-	} else {
-		currentVersion = ""
+		return "", err
 	}
 
 	remoteVersion, err := readVersion("_version.txt")
 	if err != nil {
-		return err
+		return "", err
 	}
 
+	currentVersion := *patch.Version
+
 	if currentVersion != remoteVersion {
+		fmt.Println("Updating " + name + "...")
 		fmt.Println("Version " + currentVersion + " is outdated")
+		fmt.Println("Latest version is " + remoteVersion + " is outdated")
+
+		if baseVersion(currentVersion) != baseVersion(remoteVersion) {
+			return "", errors.New("The latest version of " + name + " is needs to be downloaded manually.")
+		}
+
 		fmt.Println("Downloading version " + remoteVersion)
 		fmt.Println()
 
 		err = applyPatch(patch)
 		if err != nil {
-			return err
-		}
-		err = os.Remove("version.txt")
-		if err != nil {
-			return err
-		}
-		err = os.Rename("_version.txt", "version.txt")
-		if err != nil {
-			return err
+			return "", err
 		}
 
 		fmt.Println()
 		fmt.Println("Updated to version " + remoteVersion)
 	} else {
-		err = os.Remove("_version.txt")
-		if err != nil {
-			return err
-		}
-
 		fmt.Println("Version " + currentVersion + " is up to date")
 	}
 
-	fmt.Println("Closing in 3 seconds")
-	time.Sleep(3 * time.Second)
-
-	return nil
+	return remoteVersion, nil
 }
 
 func applyPatch(patch Patch) error {
@@ -279,9 +273,23 @@ func applyPatch(patch Patch) error {
 	return err
 }
 
+func baseVersion(version string) string {
+	index := strings.LastIndex(version, ".")
+
+	if index == -1 {
+		return version
+	}
+
+	return version[:index] + ".0"
+}
+
 func main() {
 	err := update()
 	if err != nil {
+		if fileExists("_version.txt") {
+			_ = os.Remove("_version.txt")
+		}
+
 		fmt.Printf("Error: %s", err)
 		time.Sleep(5 * time.Second)
 	}
