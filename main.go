@@ -6,6 +6,7 @@ import (
 	"crypto/sha1"
 	"errors"
 	"fmt"
+	"github.com/u3mur4/megadl"
 	"gopkg.in/yaml.v3"
 	"io"
 	"net/http"
@@ -15,12 +16,49 @@ import (
 	"time"
 )
 
+type progressWriter struct {
+	totalSize   int64
+	downloaded  int64
+	lastPercent int
+}
+
+func (pw *progressWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	pw.downloaded += int64(n)
+	percent := int((pw.downloaded * 100) / pw.totalSize)
+
+	if percent > pw.lastPercent {
+		pw.lastPercent = percent
+		fmt.Printf("\rProgress: %d%%", percent)
+	}
+
+	return n, nil
+}
+
 func download(url string, file string) error {
-	response, err := http.Get(url)
+	var reader io.ReadCloser
+	var size int64
+	var err error
+
+	if strings.HasPrefix(url, "https://mega.nz/") {
+		url = strings.Replace(url, "#", "!", 1)
+		url = strings.Replace(url, "/file/", "/#!", 1)
+
+		var info *megadl.Info
+
+		reader, info, err = megadl.Download(url)
+		size = int64(info.Size)
+	} else {
+		var response *http.Response
+		response, err = http.Get(url)
+		reader = response.Body
+		size = response.ContentLength
+	}
+
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer reader.Close()
 
 	out, err := os.Create(file)
 	if err != nil {
@@ -28,7 +66,13 @@ func download(url string, file string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, response.Body)
+	progress := &progressWriter{
+		totalSize:   size,
+		downloaded:  0,
+		lastPercent: -1,
+	}
+
+	_, err = io.Copy(out, io.TeeReader(reader, progress))
 	return err
 }
 
@@ -139,6 +183,11 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 	return hash.Sum(nil), nil
 }
 
+type Game struct {
+	Name string `yaml:"name"`
+	Url  string `yaml:"url"`
+}
+
 type Patch struct {
 	Name       string  `yaml:"name"`
 	Version    *string `yaml:"version"`
@@ -147,6 +196,7 @@ type Patch struct {
 }
 
 type Config struct {
+	Game    Game    `yaml:"game"`
 	Patches []Patch `yaml:"patches"`
 }
 
@@ -172,6 +222,13 @@ func update() error {
 	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
 		return err
+	}
+
+	if !fileExists("Game.ini") {
+		err = downloadBaseGame(config.Game)
+		if err != nil {
+			return err
+		}
 	}
 
 	// If a patch was applied all followup patches need to be reapplied on top.
@@ -214,16 +271,30 @@ func update() error {
 	return nil
 }
 
-func alwaysUpdate(patch Patch) error {
-	fmt.Println("Downloading latest patch for " + patch.Name + "...")
-	fmt.Println()
+func downloadBaseGame(game Game) error {
+	fmt.Println("Downloading base game " + game.Name + "...")
 
-	err := applyPatch(patch)
+	err := applyPatch(game.Url)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Done!")
+	fmt.Println()
+
+	return nil
+}
+
+func alwaysUpdate(patch Patch) error {
+	fmt.Println("Downloading latest patch for " + patch.Name + "...")
+
+	err := applyPatch(patch.PatchUrl)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Done!")
+	fmt.Println()
 
 	return nil
 }
@@ -255,7 +326,7 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 		fmt.Println("Downloading version " + remoteVersion)
 		fmt.Println()
 
-		err = applyPatch(patch)
+		err = applyPatch(patch.PatchUrl)
 		if err != nil {
 			return "", err
 		}
@@ -270,10 +341,10 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 	return remoteVersion, nil
 }
 
-func applyPatch(patch Patch) error {
+func applyPatch(url string) error {
 	var err error
 
-	err = download(patch.PatchUrl, "_patch.zip")
+	err = download(url, "_patch.zip")
 	if err != nil {
 		return err
 	}

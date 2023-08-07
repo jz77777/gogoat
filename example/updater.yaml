@@ -1,3 +1,6 @@
+game:
+  name: Game
+  url: https://example.com/game.zip
 patches:
     - name: Game
       version: "1.0"
