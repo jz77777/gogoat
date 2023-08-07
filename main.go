@@ -184,11 +184,14 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 }
 
 type Game struct {
-	Name string `yaml:"name"`
-	Url  string `yaml:"url"`
+	Name       string  `yaml:"name"`
+	Url        string  `yaml:"url"`
+	Version    *string `yaml:"version"`
+	VersionUrl string  `yaml:"version_url"`
+	PatchUrl   string  `yaml:"patch_url"`
 }
 
-type Patch struct {
+type Mod struct {
 	Name       string  `yaml:"name"`
 	Version    *string `yaml:"version"`
 	VersionUrl *string `yaml:"version_url"`
@@ -196,8 +199,8 @@ type Patch struct {
 }
 
 type Config struct {
-	Game    Game    `yaml:"game"`
-	Patches []Patch `yaml:"patches"`
+	Game Game  `yaml:"game"`
+	Mods []Mod `yaml:"mods"`
 }
 
 func update() error {
@@ -231,9 +234,23 @@ func update() error {
 		}
 	}
 
+	var version string
+
 	// If a patch was applied all followup patches need to be reapplied on top.
 	forceUpdate := false
-	for _, patch := range config.Patches {
+
+	version, err = attemptGameUpdate(config.Game)
+	if err != nil {
+		return err
+	}
+
+	if version != *config.Game.Version {
+		forceUpdate = true
+	}
+
+	*config.Game.Version = version
+
+	for _, patch := range config.Mods {
 		if patch.VersionUrl == nil || patch.Version == nil || forceUpdate {
 			err = alwaysUpdate(patch)
 			if err != nil {
@@ -242,7 +259,7 @@ func update() error {
 
 			forceUpdate = true
 		} else {
-			version, err := attemptUpdateUsingVersionFile(patch)
+			version, err = attemptUpdateUsingVersionFile(patch)
 			if err != nil {
 				return err
 			}
@@ -286,10 +303,48 @@ func downloadBaseGame(game Game) error {
 	return nil
 }
 
-func alwaysUpdate(patch Patch) error {
-	fmt.Println("Downloading latest patch for " + patch.Name + "...")
+func attemptGameUpdate(game Game) (string, error) {
+	var err error
 
-	err := applyPatch(patch.PatchUrl)
+	err = download(game.VersionUrl, "_version.txt")
+	if err != nil {
+		return "", err
+	}
+
+	remoteVersion, err := readVersion("_version.txt")
+	if err != nil {
+		return "", err
+	}
+
+	currentVersion := *game.Version
+
+	fmt.Println("Updating " + game.Name + "...")
+	if currentVersion != remoteVersion {
+		fmt.Println("Version " + currentVersion + " is outdated")
+		fmt.Println("Latest version is " + remoteVersion)
+
+		if baseVersion(currentVersion) != baseVersion(remoteVersion) {
+			return "", errors.New("The latest version of " + game.Name + " needs to be downloaded manually.")
+		}
+
+		err = applyPatch(game.PatchUrl)
+		if err != nil {
+			return "", err
+		}
+
+		fmt.Println()
+	} else {
+		fmt.Println("Version " + currentVersion + " is up to date")
+		fmt.Println()
+	}
+
+	return remoteVersion, nil
+}
+
+func alwaysUpdate(mod Mod) error {
+	fmt.Println("Downloading latest mod for " + mod.Name + "...")
+
+	err := applyPatch(mod.PatchUrl)
 	if err != nil {
 		return err
 	}
@@ -301,10 +356,10 @@ func alwaysUpdate(patch Patch) error {
 	return nil
 }
 
-func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
+func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 	var err error
 
-	err = download(*patch.VersionUrl, "_version.txt")
+	err = download(*mod.VersionUrl, "_version.txt")
 	if err != nil {
 		return "", err
 	}
@@ -314,26 +369,18 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 		return "", err
 	}
 
-	currentVersion := *patch.Version
+	currentVersion := *mod.Version
 
-	fmt.Println("Updating " + patch.Name + "...")
+	fmt.Println("Updating " + mod.Name + "...")
 	if currentVersion != remoteVersion {
 		fmt.Println("Version " + currentVersion + " is outdated")
-		fmt.Println("Latest version is " + remoteVersion)
-
-		if baseVersion(currentVersion) != baseVersion(remoteVersion) {
-			return "", errors.New("The latest version of " + patch.Name + " needs to be downloaded manually.")
-		}
-
 		fmt.Println("Downloading version " + remoteVersion)
 
-		err = applyPatch(patch.PatchUrl)
+		err = applyPatch(mod.PatchUrl)
 		if err != nil {
 			return "", err
 		}
 
-		fmt.Println()
-		fmt.Println("Updated to version " + remoteVersion)
 		fmt.Println()
 	} else {
 		fmt.Println("Version " + currentVersion + " is up to date")
@@ -375,6 +422,10 @@ func main() {
 
 	if fileExists("_version.txt") {
 		_ = os.Remove("_version.txt")
+	}
+
+	if fileExists("_patch.zip") {
+		_ = os.Remove("_patch.zip")
 	}
 
 	if err != nil {

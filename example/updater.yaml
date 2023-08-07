@@ -1,10 +1,9 @@
 game:
-  name: Game
-  url: https://example.com/game.zip
-patches:
-    - name: Game
-      version: "1.0"
-      version_url: https://example.com/version.txt
-      patch_url: https://example.com/patch.zip
+    name: Game
+    url: https://example.com/game.zip
+    version_url: https://example.com/version.txt
+    patch_url: https://example.com/patch.zip
+mods:
     - name: Mod
-      patch_url: https://example.com/mod.zip
+      version_url: https://example.com/mod/version.txt
+      patch_url: https://example.com/mod/mod.zip
