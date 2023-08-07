@@ -112,9 +112,9 @@ func extractArchive() error {
 			continue
 		}
 
-		if !strings.HasPrefix(file.Name, "Scripts/") {
-			fmt.Println("Extracting " + file.Name)
-		}
+		//if !strings.HasPrefix(file.Name, "Scripts/") {
+		//	fmt.Println("Extracting " + file.Name)
+		//}
 
 		err = os.MkdirAll(filepath.Dir(file.Name), os.ModePerm)
 		if err != nil {
