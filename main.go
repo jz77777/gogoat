@@ -279,6 +279,7 @@ func downloadBaseGame(game Game) error {
 		return err
 	}
 
+	fmt.Println()
 	fmt.Println("Done!")
 	fmt.Println()
 
@@ -293,6 +294,7 @@ func alwaysUpdate(patch Patch) error {
 		return err
 	}
 
+	fmt.Println()
 	fmt.Println("Done!")
 	fmt.Println()
 
@@ -314,17 +316,16 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 
 	currentVersion := *patch.Version
 
+	fmt.Println("Updating " + patch.Name + "...")
 	if currentVersion != remoteVersion {
-		fmt.Println("Updating " + patch.Name + "...")
 		fmt.Println("Version " + currentVersion + " is outdated")
-		fmt.Println("Latest version is " + remoteVersion + " is outdated")
+		fmt.Println("Latest version is " + remoteVersion)
 
 		if baseVersion(currentVersion) != baseVersion(remoteVersion) {
-			return "", errors.New("The latest version of " + patch.Name + " is needs to be downloaded manually.")
+			return "", errors.New("The latest version of " + patch.Name + " needs to be downloaded manually.")
 		}
 
 		fmt.Println("Downloading version " + remoteVersion)
-		fmt.Println()
 
 		err = applyPatch(patch.PatchUrl)
 		if err != nil {
@@ -336,6 +337,7 @@ func attemptUpdateUsingVersionFile(patch Patch) (string, error) {
 		fmt.Println()
 	} else {
 		fmt.Println("Version " + currentVersion + " is up to date")
+		fmt.Println()
 	}
 
 	return remoteVersion, nil
