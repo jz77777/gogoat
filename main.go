@@ -237,7 +237,7 @@ func update() error {
 		return err
 	}
 
-	if !fileExists("Game.ini") {
+	if !fileExists("version") {
 		err = downloadBaseGame(config.Game, remoteVersion)
 		if err != nil {
 			return err
