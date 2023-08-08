@@ -22,11 +22,21 @@ jobs:
       - name: Dependencies
         run: go get .
 
+      - name: Lipo
+        uses: dsaltares/fetch-gh-release-asset@1.1.1
+        with:
+          repo: konoui/lipo
+          file: lipo_linux_amd64
+          target: lipo
+
       - name: Compile
         run: |
           GOARCH=amd64 GOOS=windows go build -ldflags="-s -w" -o updater.exe main.go
           GOARCH=amd64 GOOS=linux go build -ldflags="-s -w" -o updater-linux main.go
-          GOARCH=amd64 GOOS=darwin go build -ldflags="-s -w" -o updater-mac main.go
+          GOARCH=amd64 GOOS=darwin go build -ldflags="-s -w" -o updater-mac-amd main.go
+          GOARCH=arm64 GOOS=darwin go build -ldflags="-s -w" -o updater-mac-arm main.go
+          chmod +x lipo
+          ./lipo -output updater-mac -create updater-mac-arm updater-mac-amd
 
       - name: Release
         uses: softprops/action-gh-release@v1
