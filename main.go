@@ -184,11 +184,11 @@ func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
 }
 
 type Game struct {
-	Name       string  `yaml:"name"`
-	Url        string  `yaml:"url"`
-	Version    *string `yaml:"version"`
-	VersionUrl string  `yaml:"version_url"`
-	PatchUrl   string  `yaml:"patch_url"`
+	Name       string `yaml:"name"`
+	Url        string `yaml:"url"`
+	Version    string `yaml:"version"`
+	VersionUrl string `yaml:"version_url"`
+	PatchUrl   string `yaml:"patch_url"`
 }
 
 type Mod struct {
@@ -227,8 +227,18 @@ func update() error {
 		return err
 	}
 
+	err = download(config.Game.VersionUrl, "_version.txt")
+	if err != nil {
+		return err
+	}
+
+	remoteVersion, err := readVersion("_version.txt")
+	if err != nil {
+		return err
+	}
+
 	if !fileExists("Game.ini") {
-		err = downloadBaseGame(config.Game)
+		err = downloadBaseGame(config.Game, remoteVersion)
 		if err != nil {
 			return err
 		}
@@ -239,16 +249,16 @@ func update() error {
 	// If a patch was applied all followup patches need to be reapplied on top.
 	forceUpdate := false
 
-	version, err = attemptGameUpdate(config.Game)
+	version, err = attemptGameUpdate(config.Game, remoteVersion)
 	if err != nil {
 		return err
 	}
 
-	if version != *config.Game.Version {
+	if version != config.Game.Version {
 		forceUpdate = true
 	}
 
-	*config.Game.Version = version
+	config.Game.Version = version
 
 	for _, patch := range config.Mods {
 		if patch.VersionUrl == nil || patch.Version == nil || forceUpdate {
@@ -288,8 +298,12 @@ func update() error {
 	return nil
 }
 
-func downloadBaseGame(game Game) error {
+func downloadBaseGame(game Game, remoteVersion string) error {
 	fmt.Println("Downloading base game " + game.Name + "...")
+
+	if baseVersion(game.Version) != baseVersion(remoteVersion) {
+		return errors.New("The latest version of " + game.Name + " is " + remoteVersion + " while this executable is for " + game.Version + ".")
+	}
 
 	err := applyPatch(game.Url)
 	if err != nil {
@@ -303,20 +317,10 @@ func downloadBaseGame(game Game) error {
 	return nil
 }
 
-func attemptGameUpdate(game Game) (string, error) {
+func attemptGameUpdate(game Game, remoteVersion string) (string, error) {
 	var err error
 
-	err = download(game.VersionUrl, "_version.txt")
-	if err != nil {
-		return "", err
-	}
-
-	remoteVersion, err := readVersion("_version.txt")
-	if err != nil {
-		return "", err
-	}
-
-	currentVersion := *game.Version
+	currentVersion := game.Version
 
 	fmt.Println("Updating " + game.Name + "...")
 	if currentVersion != remoteVersion {
