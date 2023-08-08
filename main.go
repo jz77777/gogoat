@@ -432,6 +432,10 @@ func main() {
 		_ = os.Remove("_patch.zip")
 	}
 
+	if fileExists("RUN UPDATER FIRST.txt") {
+		_ = os.Remove("RUN UPDATER FIRST.txt")
+	}
+
 	if err != nil {
 		fmt.Printf("Error: %s", err)
 		time.Sleep(5 * time.Second)
