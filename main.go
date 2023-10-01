@@ -2,10 +2,10 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
-	"crypto/sha1"
+	"bufio"
 	"errors"
 	"fmt"
+	"github.com/bodgit/sevenzip"
 	"github.com/u3mur4/megadl"
 	"gopkg.in/yaml.v3"
 	"io"
@@ -112,38 +112,25 @@ func fileExists(file string) bool {
 	return !os.IsNotExist(err) && !info.IsDir()
 }
 
-func extractArchive() error {
+func extractZipArchive() error {
 	var err error
-	zip, err := zip.OpenReader("_patch.zip")
+	reader, err := zip.OpenReader("_patch.zip")
 	if err != nil {
 		return err
 	}
-	defer zip.Close()
+	defer reader.Close()
 
-	for _, file := range zip.File {
+	for _, file := range reader.File {
 		if file.FileInfo().IsDir() {
 			continue
 		}
-
-		skipExtraction, err := archiveFileIsTheSame(file.Name, file)
-		if err != nil {
-			return err
-		}
-
-		if skipExtraction {
-			continue
-		}
-
-		//if !strings.HasPrefix(file.Name, "Scripts/") {
-		//	fmt.Println("Extracting " + file.Name)
-		//}
 
 		err = os.MkdirAll(filepath.Dir(file.Name), os.ModePerm)
 		if err != nil {
 			return err
 		}
 
-		err = extractFile(file)
+		err = extractZipFile(file)
 		if err != nil {
 			return err
 		}
@@ -152,7 +139,42 @@ func extractArchive() error {
 	return nil
 }
 
-func extractFile(zipFile *zip.File) error {
+func extractSevenZipArchive(password *string) error {
+	var err error
+	var reader *sevenzip.ReadCloser
+
+	if password == nil {
+		reader, err = sevenzip.OpenReader("_patch.7z")
+	} else {
+		reader, err = sevenzip.OpenReaderWithPassword("_patch.7z", *password)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	defer reader.Close()
+
+	for _, file := range reader.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+
+		err = os.MkdirAll(filepath.Dir(file.Name), os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		err = extractSevenZipFile(file)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func extractZipFile(zipFile *zip.File) error {
 	out, err := os.Create(zipFile.Name)
 	if err != nil {
 		return err
@@ -170,53 +192,31 @@ func extractFile(zipFile *zip.File) error {
 	return err
 }
 
-func archiveFileIsTheSame(fileName string, zipFile *zip.File) (bool, error) {
-	if !fileExists(fileName) {
-		return false, nil
-	}
-
-	var err error
-	zipContent, err := zipFile.Open()
+func extractSevenZipFile(zipFile *sevenzip.File) error {
+	out, err := os.Create(zipFile.Name)
 	if err != nil {
-		return false, err
+		return err
 	}
+	defer out.Close()
 
-	zipSum, err := calculateFileHash(zipContent)
+	in, err := zipFile.Open()
 	if err != nil {
-		return false, err
+		return err
 	}
+	defer in.Close()
 
-	existingReader, err := os.Open(fileName)
-	if err != nil {
-		return false, err
-	}
+	_, err = io.Copy(out, in)
 
-	existingSum, err := calculateFileHash(existingReader)
-	if err != nil {
-		return false, err
-	}
-
-	return bytes.Equal(zipSum, existingSum), nil
-}
-
-func calculateFileHash(reader io.ReadCloser) ([]byte, error) {
-	defer reader.Close()
-
-	hash := sha1.New()
-	_, err := io.Copy(hash, reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return hash.Sum(nil), nil
+	return err
 }
 
 type Game struct {
-	Name       string `yaml:"name"`
-	Url        string `yaml:"url"`
-	Version    string `yaml:"version"`
-	VersionUrl string `yaml:"version_url"`
-	PatchUrl   string `yaml:"patch_url"`
+	Name       string  `yaml:"name"`
+	Url        string  `yaml:"url"`
+	Version    string  `yaml:"version"`
+	VersionUrl string  `yaml:"version_url"`
+	PatchUrl   string  `yaml:"patch_url"`
+	Password   *string `yaml:"password"`
 }
 
 type Mod struct {
@@ -224,6 +224,7 @@ type Mod struct {
 	Version    *string `yaml:"version"`
 	VersionUrl *string `yaml:"version_url"`
 	PatchUrl   string  `yaml:"patch_url"`
+	Password   *string `yaml:"password"`
 }
 
 type Config struct {
@@ -265,6 +266,17 @@ func update() error {
 		return err
 	}
 
+	if config.Game.Password == nil && strings.HasSuffix(config.Game.PatchUrl, ".7z") {
+		fmt.Println("Provide password for base game:")
+
+		password, err := readPassword()
+		if err != nil {
+			return err
+		}
+
+		config.Game.Password = &password
+	}
+
 	if !fileExists("version") {
 		err = downloadBaseGame(config.Game, remoteVersion)
 		if err != nil {
@@ -289,6 +301,17 @@ func update() error {
 	config.Game.Version = version
 
 	for _, mod := range config.Mods {
+		if mod.Password == nil && strings.HasSuffix(mod.PatchUrl, ".7z") {
+			fmt.Println("Provide password for mod " + mod.Name + ":")
+
+			password, err := readPassword()
+			if err != nil {
+				return err
+			}
+
+			*mod.Password = password
+		}
+
 		if mod.VersionUrl == nil || mod.Version == nil || forceUpdate {
 			err = alwaysUpdate(mod)
 			if err != nil {
@@ -326,6 +349,16 @@ func update() error {
 	return nil
 }
 
+func readPassword() (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(input), nil
+}
+
 func downloadBaseGame(game Game, remoteVersion string) error {
 	fmt.Println("Downloading base game " + game.Name + "...")
 
@@ -333,7 +366,7 @@ func downloadBaseGame(game Game, remoteVersion string) error {
 		return errors.New("The latest version of " + game.Name + " is " + remoteVersion + " while this executable is for " + game.Version + ".")
 	}
 
-	err := applyPatch(game.Url)
+	err := applyPatch(game.Url, game.Password)
 	if err != nil {
 		return err
 	}
@@ -359,7 +392,7 @@ func attemptGameUpdate(game Game, remoteVersion string) (string, error) {
 			return "", errors.New("The latest version of " + game.Name + " needs to be downloaded manually.")
 		}
 
-		err = applyPatch(game.PatchUrl)
+		err = applyPatch(game.PatchUrl, game.Password)
 		if err != nil {
 			return "", err
 		}
@@ -376,7 +409,7 @@ func attemptGameUpdate(game Game, remoteVersion string) (string, error) {
 func alwaysUpdate(mod Mod) error {
 	fmt.Println("Downloading latest mod for " + mod.Name + "...")
 
-	err := applyPatch(mod.PatchUrl)
+	err := applyPatch(mod.PatchUrl, mod.Password)
 	if err != nil {
 		return err
 	}
@@ -408,7 +441,7 @@ func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 		fmt.Println("Version " + currentVersion + " is outdated")
 		fmt.Println("Downloading version " + remoteVersion)
 
-		err = applyPatch(mod.PatchUrl)
+		err = applyPatch(mod.PatchUrl, mod.Password)
 		if err != nil {
 			return "", err
 		}
@@ -422,22 +455,34 @@ func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 	return remoteVersion, nil
 }
 
-func applyPatch(url string) error {
+func applyPatch(url string, password *string) error {
+	var name string
 	var err error
 
-	err = download(url, "_patch.zip", true)
+	if strings.HasSuffix(url, ".7z") {
+		name = "_patch.7z"
+	} else {
+		name = "_patch.zip"
+	}
+
+	err = download(url, name, true)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Extracting archive...")
 
-	err = extractArchive()
+	if strings.HasSuffix(url, ".7z") {
+		err = extractSevenZipArchive(password)
+	} else {
+		err = extractZipArchive()
+	}
+
 	if err != nil {
 		return err
 	}
 
-	err = os.Remove("_patch.zip")
+	err = os.Remove(name)
 	return err
 }
 
@@ -460,6 +505,10 @@ func main() {
 
 	if fileExists("_patch.zip") {
 		_ = os.Remove("_patch.zip")
+	}
+
+	if fileExists("_patch.7z") {
+		_ = os.Remove("_patch.7z")
 	}
 
 	if err != nil {
