@@ -121,25 +121,31 @@ func extractArchive() error {
 			return err
 		}
 
-		out, err := os.Create(file.Name)
-		if err != nil {
-			return err
-		}
-		defer out.Close()
-
-		in, err := file.Open()
-		if err != nil {
-			return err
-		}
-		defer in.Close()
-
-		_, err = io.Copy(out, in)
+		err = extractFile(file)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func extractFile(zipFile *zip.File) error {
+	out, err := os.Create(zipFile.Name)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	in, err := zipFile.Open()
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	_, err = io.Copy(out, in)
+
+	return err
 }
 
 func archiveFileIsTheSame(fileName string, zipFile *zip.File) (bool, error) {
