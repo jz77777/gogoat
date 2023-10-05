@@ -1,11 +1,13 @@
 game:
     name: Game
-    url: https://example.com/game.zip
-    version: "1.0.0"
+    url: https://example.com/game.7z
+    version: "1.0.0-alpha.0"
     version_url: https://example.com/version.txt
-    patch_url: https://example.com/patch.zip
+    patch_url: https://example.com/patch.7z
+    format: 7z
     password: "7zip password"
 mods:
     - name: Mod
       version_url: https://example.com/mod/version.txt
       patch_url: https://example.com/mod/mod.zip
+      format: zip

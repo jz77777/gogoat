@@ -216,6 +216,7 @@ type Game struct {
 	Version    string  `yaml:"version"`
 	VersionUrl string  `yaml:"version_url"`
 	PatchUrl   string  `yaml:"patch_url"`
+	Format     string  `yaml:"format"`
 	Password   *string `yaml:"password"`
 }
 
@@ -224,6 +225,7 @@ type Mod struct {
 	Version    *string `yaml:"version"`
 	VersionUrl *string `yaml:"version_url"`
 	PatchUrl   string  `yaml:"patch_url"`
+	Format     string  `yaml:"format"`
 	Password   *string `yaml:"password"`
 }
 
@@ -256,6 +258,11 @@ func update() error {
 		return err
 	}
 
+	err = validateFormat(config.Game.Format)
+	if err != nil {
+		return err
+	}
+
 	err = download(config.Game.VersionUrl, "_version.txt", false)
 	if err != nil {
 		return err
@@ -266,8 +273,8 @@ func update() error {
 		return err
 	}
 
-	if config.Game.Password == nil && strings.HasSuffix(config.Game.PatchUrl, ".7z") {
-		fmt.Println("Provide password for base game:")
+	if config.Game.Password == nil && config.Game.Format == "7z" {
+		fmt.Println("Provide password for " + config.Game.Name + ":")
 
 		password, err := readPassword()
 		if err != nil {
@@ -301,7 +308,12 @@ func update() error {
 	config.Game.Version = version
 
 	for _, mod := range config.Mods {
-		if mod.Password == nil && strings.HasSuffix(mod.PatchUrl, ".7z") {
+		err = validateFormat(mod.Format)
+		if err != nil {
+			return err
+		}
+
+		if mod.Password == nil && mod.Format == "7z" {
 			fmt.Println("Provide password for mod " + mod.Name + ":")
 
 			password, err := readPassword()
@@ -349,6 +361,14 @@ func update() error {
 	return nil
 }
 
+func validateFormat(format string) error {
+	if format != "zip" && format != "7z" {
+		return errors.New("format must be either \"zip\" or \"7z\"")
+	}
+
+	return nil
+}
+
 func readPassword() (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 	input, err := reader.ReadString('\n')
@@ -366,7 +386,7 @@ func downloadBaseGame(game Game, remoteVersion string) error {
 		return errors.New("The latest version of " + game.Name + " is " + remoteVersion + " while this executable is for " + game.Version + ".")
 	}
 
-	err := applyPatch(game.Url, game.Password)
+	err := applyPatch(game.Url, game.Format, game.Password)
 	if err != nil {
 		return err
 	}
@@ -392,7 +412,7 @@ func attemptGameUpdate(game Game, remoteVersion string) (string, error) {
 			return "", errors.New("The latest version of " + game.Name + " needs to be downloaded manually.")
 		}
 
-		err = applyPatch(game.PatchUrl, game.Password)
+		err = applyPatch(game.PatchUrl, game.Format, game.Password)
 		if err != nil {
 			return "", err
 		}
@@ -409,7 +429,7 @@ func attemptGameUpdate(game Game, remoteVersion string) (string, error) {
 func alwaysUpdate(mod Mod) error {
 	fmt.Println("Downloading latest mod for " + mod.Name + "...")
 
-	err := applyPatch(mod.PatchUrl, mod.Password)
+	err := applyPatch(mod.PatchUrl, mod.Format, mod.Password)
 	if err != nil {
 		return err
 	}
@@ -441,7 +461,7 @@ func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 		fmt.Println("Version " + currentVersion + " is outdated")
 		fmt.Println("Downloading version " + remoteVersion)
 
-		err = applyPatch(mod.PatchUrl, mod.Password)
+		err = applyPatch(mod.PatchUrl, mod.Format, mod.Password)
 		if err != nil {
 			return "", err
 		}
@@ -455,15 +475,10 @@ func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 	return remoteVersion, nil
 }
 
-func applyPatch(url string, password *string) error {
-	var name string
+func applyPatch(url string, format string, password *string) error {
 	var err error
 
-	if strings.HasSuffix(url, ".7z") {
-		name = "_patch.7z"
-	} else {
-		name = "_patch.zip"
-	}
+	name := "_patch." + format
 
 	err = download(url, name, true)
 	if err != nil {
@@ -472,7 +487,7 @@ func applyPatch(url string, password *string) error {
 
 	fmt.Println("Extracting archive...")
 
-	if strings.HasSuffix(url, ".7z") {
+	if format == "7z" {
 		err = extractSevenZipArchive(password)
 	} else {
 		err = extractZipArchive()
