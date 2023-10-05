@@ -35,7 +35,7 @@ func (pw *progressWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-func download(url string, file string) error {
+func download(url string, file string, progress bool) error {
 	var reader io.ReadCloser
 	var size int64
 	var err error
@@ -73,14 +73,29 @@ func download(url string, file string) error {
 	}
 	defer out.Close()
 
-	progress := &progressWriter{
-		totalSize:   size,
-		downloaded:  0,
-		lastPercent: -1,
+	var in io.Reader
+
+	if progress {
+		progressWriter := &progressWriter{
+			totalSize:   size,
+			downloaded:  0,
+			lastPercent: -1,
+		}
+		in = io.TeeReader(reader, progressWriter)
+	} else {
+		in = reader
 	}
 
-	_, err = io.Copy(out, io.TeeReader(reader, progress))
-	return err
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+
+	if progress {
+		fmt.Println()
+	}
+
+	return nil
 }
 
 func readVersion(file string) (string, error) {
@@ -240,7 +255,7 @@ func update() error {
 		return err
 	}
 
-	err = download(config.Game.VersionUrl, "_version.txt")
+	err = download(config.Game.VersionUrl, "_version.txt", false)
 	if err != nil {
 		return err
 	}
@@ -376,7 +391,7 @@ func alwaysUpdate(mod Mod) error {
 func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 	var err error
 
-	err = download(*mod.VersionUrl, "_version.txt")
+	err = download(*mod.VersionUrl, "_version.txt", false)
 	if err != nil {
 		return "", err
 	}
@@ -410,10 +425,12 @@ func attemptUpdateUsingVersionFile(mod Mod) (string, error) {
 func applyPatch(url string) error {
 	var err error
 
-	err = download(url, "_patch.zip")
+	err = download(url, "_patch.zip", true)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Extracting archive...")
 
 	err = extractArchive()
 	if err != nil {
