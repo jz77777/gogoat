@@ -47,17 +47,24 @@ func download(url string, file string) error {
 		var info *megadl.Info
 
 		reader, info, err = megadl.Download(url)
+
+		if err != nil {
+			return err
+		}
+
 		size = int64(info.Size)
 	} else {
 		var response *http.Response
 		response, err = http.Get(url)
+
+		if err != nil {
+			return err
+		}
+
 		reader = response.Body
 		size = response.ContentLength
 	}
 
-	if err != nil {
-		return err
-	}
 	defer reader.Close()
 
 	out, err := os.Create(file)
