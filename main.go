@@ -288,25 +288,25 @@ func update() error {
 
 	config.Game.Version = version
 
-	for _, patch := range config.Mods {
-		if patch.VersionUrl == nil || patch.Version == nil || forceUpdate {
-			err = alwaysUpdate(patch)
+	for _, mod := range config.Mods {
+		if mod.VersionUrl == nil || mod.Version == nil || forceUpdate {
+			err = alwaysUpdate(mod)
 			if err != nil {
 				return err
 			}
 
 			forceUpdate = true
 		} else {
-			version, err = attemptUpdateUsingVersionFile(patch)
+			version, err = attemptUpdateUsingVersionFile(mod)
 			if err != nil {
 				return err
 			}
 
-			if version != *patch.Version {
+			if version != *mod.Version {
 				forceUpdate = true
 			}
 
-			*patch.Version = version
+			*mod.Version = version
 		}
 	}
 
