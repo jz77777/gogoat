@@ -212,7 +212,7 @@ func extractSevenZipFile(zipFile *sevenzip.File) error {
 
 type Game struct {
 	Name       string  `yaml:"name"`
-	Url        string  `yaml:"url"`
+	Url        *string `yaml:"url"`
 	Version    string  `yaml:"version"`
 	VersionUrl string  `yaml:"version_url"`
 	PatchUrl   string  `yaml:"patch_url"`
@@ -380,13 +380,17 @@ func readPassword() (string, error) {
 }
 
 func downloadBaseGame(game Game, remoteVersion string) error {
-	fmt.Println("Downloading base game " + game.Name + "...")
-
 	if baseVersion(game.Version) != baseVersion(remoteVersion) {
 		return errors.New("The latest version of " + game.Name + " is " + remoteVersion + " while this executable is for " + game.Version + ".")
 	}
 
-	err := applyPatch(game.Url, game.Format, game.Password)
+	if game.Url == nil {
+		return nil
+	}
+
+	fmt.Println("Downloading base game " + game.Name + "...")
+
+	err := applyPatch(*game.Url, game.Format, game.Password)
 	if err != nil {
 		return err
 	}
