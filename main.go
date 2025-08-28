@@ -46,6 +46,7 @@ func download(url string, file string, progress bool) error {
 
 		var info *megadl.Info
 
+		fmt.Println("url is" + url)
 		reader, info, err = megadl.Download(url)
 
 		if err != nil {
